@@ -35,9 +35,15 @@ the following Actions and associated Extras set:
 * `net.christianbeier.droidvnc_ng.ACTION_CONNECT_REPEATER` Make an outbound connection to a repeater.
   * `net.christianbeier.droidvnc_ng.EXTRA_ACCESS_KEY`: Required String Extra containing the remote control interface's access key. You can get/set this from the Admin Panel.
   * `net.christianbeier.droidvnc_ng.EXTRA_REQUEST_ID`: Optional String Extra containing a unique id for this request. Used to identify the answer from the service.
-  * `net.christianbeier.droidvnc_ng.EXTRA_HOST`: Required String Extra setting the host to connect to.
-  * `net.christianbeier.droidvnc_ng.EXTRA_PORT`: Optional Integer Extra setting the remote port.
+  * `net.christianbeier.droidvnc_ng.EXTRA_HOST`: Required String Extra setting the host to connect to. Can also be a `ws://` or `wss://` URL of a
+    WebSocket repeater like [vnc-relay](https://github.com/kayden-kim/vnc-relay), e.g. `wss://relay.example.com:8443/relay/server`. A URL without a
+    path gets `/relay/server`. `wss://` certificates are checked against the system's trust store.
+  * `net.christianbeier.droidvnc_ng.EXTRA_PORT`: Optional Integer Extra setting the remote port. Ignored for `ws://` and `wss://` URLs, which carry their port.
   * `net.christianbeier.droidvnc_ng.EXTRA_REPEATER_ID`: Required String Extra setting the ID on the repeater.
+  * `net.christianbeier.droidvnc_ng.EXTRA_REPEATER_TICKET`: Optional String Extra containing an access ticket (JWS compact serialization) for a
+    `ws://` or `wss://` repeater, sent as WebSocket subprotocol `ticket.<ticket>` next to `binary`. The request fails if `EXTRA_HOST` is not a
+    `ws://` or `wss://` URL. Tickets are single-use, so a connection with a ticket never reconnects and `EXTRA_RECONNECT_TRIES` is ignored:
+    send a new request with a fresh ticket instead.
   * `net.christianbeier.droidvnc_ng.EXTRA_RECONNECT_TRIES`: Optional Integer Extra setting the number of tries reconnecting a once established connection. Needs request id to be set.
 
 * `net.christianbeier.droidvnc_ng.ACTION_GET_CLIENTS` Get a JSON array of currently handled clients.
@@ -152,6 +158,21 @@ startForegroundService(intent)
 For example from Java code:
 
 See [MainActivity.java](../app/src/main/java/net/christianbeier/droidvnc_ng/ui/MainActivity.java).
+
+### Make an outbound connection to a WebSocket repeater with an access ticket
+
+Using `adb shell am` syntax:
+
+```shell
+adb shell am start-foreground-service \
+ -n net.christianbeier.droidvnc_ng/.MainService \
+ -a net.christianbeier.droidvnc_ng.ACTION_CONNECT_REPEATER \
+ --es net.christianbeier.droidvnc_ng.EXTRA_ACCESS_KEY de32550a6efb43f8a5d145e6c07b2cde \
+ --es net.christianbeier.droidvnc_ng.EXTRA_REQUEST_ID ghi789 \
+ --es net.christianbeier.droidvnc_ng.EXTRA_HOST wss://relay.example.com:8443/relay/server \
+ --es net.christianbeier.droidvnc_ng.EXTRA_REPEATER_ID 1234 \
+ --es net.christianbeier.droidvnc_ng.EXTRA_REPEATER_TICKET eyJhbGciOiJFUzI1NiIsImtpZCI6ImsxIn0.eyJyaWQiOiIxMjM0In0.c2lnbmF0dXJl
+```
 
 ### Stop the server again
 

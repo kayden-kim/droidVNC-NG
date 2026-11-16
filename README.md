@@ -94,6 +94,7 @@ Here's how to connect to a listening VNC viewer or repeater without opening a se
 1. Leave the VNC port **blank**, which will get the Admin Panel to state the server **isn't** listening for incoming connections.
 2. Make outbound connections by choosing either "Connect to a **listening viewer**" or "Connect to a **repeater**".
 3. Optionally fill **Max. reconnect tries**. If you leave it empty, the default is **0** (no reconnect). Connections started from the [Intent Interface](doc/Intent-Interface.md) can set `EXTRA_RECONNECT_TRIES` instead.
+4. To reach a WebSocket repeater like [vnc-relay](https://github.com/kayden-kim/vnc-relay), enter a `ws://` or `wss://` URL instead of host and port, e.g. `wss://relay.example.com:8443/relay/server`. A URL without a path gets `/relay/server`. Access tickets can be passed via the [Intent Interface](doc/Intent-Interface.md) only.
 
 
 ### How to Pre-seed Preferences

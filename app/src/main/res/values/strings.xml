@@ -42,7 +42,7 @@
     <string name="main_activity_reverse_vnc_success">Connection to %1$s succeeded</string>
     <string name="main_activity_reverse_vnc_fail">Connection to %1$s failed</string>
     <string name="main_activity_repeater_vnc_button">Connect to a repeater</string>
-    <string name="main_activity_repeater_vnc_hint">Host:Port</string>
+    <string name="main_activity_repeater_vnc_hint">Host:Port or ws(s)://Host:Port/Path</string>
     <string name="main_activity_repeater_vnc_hint_id">ID on Repeater</string>
     <string name="main_activity_repeater_vnc_success">Connection to %1$s with ID %2$s succeeded</string>
     <string name="main_activity_repeater_vnc_fail">Connection to %1$s with ID %2$s failed</string>

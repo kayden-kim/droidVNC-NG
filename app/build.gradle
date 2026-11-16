@@ -151,6 +151,8 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:1.13.0"
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0"
+    // WebSocket client for ws:// and wss:// repeaters, see ADR 0006
+    implementation "com.squareup.okhttp3:okhttp:5.4.0"
 }
 repositories {
     mavenCentral()

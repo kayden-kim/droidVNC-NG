@@ -28,6 +28,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <unistd.h>
 #include "rfb/rfb.h"
 
 #define TAG "droidvnc-ng (native)"
@@ -546,6 +547,57 @@ JNIEXPORT jlong JNICALL Java_net_christianbeier_droidvnc_1ng_MainService_vncConn
         return (jlong) cl;
     }
     return 0;
+}
+
+/*
+ * Adopts sock, already connected to an UltraVNC-style Mode-2 repeater with the repeater ID sent,
+ * as a new client. Used for repeaters reached via a transport bridged in Java, e.g. WebSocket.
+ * Takes ownership of sock, also on failure. host is what is reported as the client's remote.
+ */
+JNIEXPORT jlong JNICALL Java_net_christianbeier_droidvnc_1ng_MainService_vncConnectRepeaterSocket(JNIEnv *env, __unused jobject thiz, jint sock, jstring host, jint port, jstring repeaterIdentifier)
+{
+    if(!theScreen || !theScreen->frameBuffer || !host || !repeaterIdentifier) {
+        close(sock);
+        return 0;
+    }
+
+    const char *cHost = (*env)->GetStringUTFChars(env, host, NULL);
+    const char *cRepeaterIdentifier = (*env)->GetStringUTFChars(env, repeaterIdentifier, NULL);
+    char *clientHost = cHost ? strdup(cHost) : NULL;
+    char *clientRepeaterId = cRepeaterIdentifier ? strdup(cRepeaterIdentifier) : NULL;
+    if(cHost)
+        (*env)->ReleaseStringUTFChars(env, host, cHost);
+    if(cRepeaterIdentifier)
+        (*env)->ReleaseStringUTFChars(env, repeaterIdentifier, cRepeaterIdentifier);
+    if(!clientHost || !clientRepeaterId) {
+        __android_log_print(ANDROID_LOG_ERROR, TAG, "vncConnectRepeaterSocket: failed getting host or repeater ID from JNI");
+        free(clientHost);
+        free(clientRepeaterId);
+        close(sock);
+        return 0;
+    }
+
+    // closes sock on failure
+    rfbClientPtr cl = rfbNewClient(theScreen, sock);
+    if(!cl) {
+        __android_log_print(ANDROID_LOG_ERROR, TAG, "vncConnectRepeaterSocket: new client failed");
+        free(clientHost);
+        free(clientRepeaterId);
+        return 0;
+    }
+
+    // getpeername() on the local socket yields no usable address, report the repeater instead
+    char *oldHost = cl->host;
+    cl->host = clientHost;
+    free(oldHost);
+    cl->destPort = port;
+    // freed by rfbClientConnectionGone()
+    cl->repeaterId = clientRepeaterId;
+
+    if(!cl->onHold)
+        rfbStartOnHoldClient(cl);
+
+    return (jlong) cl;
 }
 
 

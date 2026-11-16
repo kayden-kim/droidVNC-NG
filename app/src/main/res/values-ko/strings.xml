@@ -41,7 +41,7 @@
     <string name="main_activity_reverse_vnc_success">%1$s에 연결 성공</string>
     <string name="main_activity_reverse_vnc_fail">%1$s에 연결 실패</string>
     <string name="main_activity_repeater_vnc_button">중계 서버에 연결</string>
-    <string name="main_activity_repeater_vnc_hint">호스트:포트</string>
+    <string name="main_activity_repeater_vnc_hint">호스트:포트 또는 ws(s)://호스트:포트/경로</string>
     <string name="main_activity_repeater_vnc_hint_id">중계 서버의 ID</string>
     <string name="main_activity_repeater_vnc_success">%1$s의 ID %2$s에 연결 성공</string>
     <string name="main_activity_repeater_vnc_fail">%1$s의 ID %2$s에 연결 실패</string>

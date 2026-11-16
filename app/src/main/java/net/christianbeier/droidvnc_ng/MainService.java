@@ -68,6 +68,7 @@ import net.christianbeier.droidvnc_ng.input.InputRequestActivity;
 import net.christianbeier.droidvnc_ng.server.ClientList;
 import net.christianbeier.droidvnc_ng.server.MainServicePersistData;
 import net.christianbeier.droidvnc_ng.server.NotificationRequestActivity;
+import net.christianbeier.droidvnc_ng.server.WebSocketRepeater;
 import net.christianbeier.droidvnc_ng.server.WriteStorageRequestActivity;
 import net.christianbeier.droidvnc_ng.ui.MainActivity;
 
@@ -104,6 +105,10 @@ public class MainService extends Service {
     public static final String EXTRA_HOST = "net.christianbeier.droidvnc_ng.EXTRA_HOST";
     public static final String EXTRA_PORT = "net.christianbeier.droidvnc_ng.EXTRA_PORT";
     public static final String EXTRA_REPEATER_ID = "net.christianbeier.droidvnc_ng.EXTRA_REPEATER_ID";
+    /**
+     * Access ticket for ws:// and wss:// repeaters. Single-use, so it is not reused on reconnect.
+     */
+    public static final String EXTRA_REPEATER_TICKET = "net.christianbeier.droidvnc_ng.EXTRA_REPEATER_TICKET";
     public static final String EXTRA_RECONNECT_TRIES = "net.christianbeier.droidvnc_ng.EXTRA_RECONNECT_TRIES";
     public static final String EXTRA_ACCESS_KEY = "net.christianbeier.droidvnc_ng.EXTRA_ACCESS_KEY";
     public static final String EXTRA_PASSWORD = "net.christianbeier.droidvnc_ng.EXTRA_PASSWORD";
@@ -291,6 +296,7 @@ public class MainService extends Service {
     private native boolean vncRebindInterface(String interfaceName, int port);
     private native long vncConnectReverse(String host, int port);
     private native long vncConnectRepeater(String host, int port, String repeaterIdentifier);
+    private native long vncConnectRepeaterSocket(int fd, String host, int port, String repeaterIdentifier);
     public static native boolean vncNewFramebuffer(int width, int height);
     public static native boolean vncUpdateFramebuffer(ByteBuffer buf, int rowStride);
     public static native int vncGetFramebufferWidth();
@@ -698,10 +704,22 @@ public class MainService extends Service {
                 new Thread(() -> {
                     long client = 0;
                     try {
-                        client = instance.vncConnectRepeater(
-                                intent.getStringExtra(EXTRA_HOST),
-                                intent.getIntExtra(EXTRA_PORT, mDefaults.getPortRepeater()),
-                                intent.getStringExtra(EXTRA_REPEATER_ID));
+                        String host = intent.getStringExtra(EXTRA_HOST);
+                        if (WebSocketRepeater.isWebSocketUrl(host)) {
+                            client = WebSocketRepeater.connect(
+                                    host,
+                                    Objects.requireNonNull(intent.getStringExtra(EXTRA_REPEATER_ID)),
+                                    intent.getStringExtra(EXTRA_REPEATER_TICKET),
+                                    instance::vncConnectRepeaterSocket);
+                        } else if (intent.getStringExtra(EXTRA_REPEATER_TICKET) != null) {
+                            // plain TCP cannot carry the ticket, connecting without it would silently downgrade
+                            Log.e(TAG, "onStartCommand: connect repeater: access ticket needs a ws:// or wss:// URL");
+                        } else {
+                            client = instance.vncConnectRepeater(
+                                    host,
+                                    intent.getIntExtra(EXTRA_PORT, mDefaults.getPortRepeater()),
+                                    intent.getStringExtra(EXTRA_REPEATER_ID));
+                        }
                     } catch (NullPointerException ignored) {
                     }
                     Intent answer = new Intent(ACTION_CONNECT_REPEATER);
@@ -735,7 +753,9 @@ public class MainService extends Service {
                 mOutboundClientsToReconnect.forEach((key, value) -> clientList.insertOrUpdate(new ClientList.Client(
                         value.client,
                         value.intent.getStringExtra(MainService.EXTRA_HOST),
-                        value.intent.getIntExtra(MainService.EXTRA_PORT, value.intent.getStringExtra(MainService.EXTRA_REPEATER_ID) != null ? mDefaults.getPortRepeater() : mDefaults.getPortReverse()),
+                        WebSocketRepeater.isWebSocketUrl(value.intent.getStringExtra(MainService.EXTRA_HOST))
+                                ? WebSocketRepeater.getPort(value.intent.getStringExtra(MainService.EXTRA_HOST))
+                                : value.intent.getIntExtra(MainService.EXTRA_PORT, value.intent.getStringExtra(MainService.EXTRA_REPEATER_ID) != null ? mDefaults.getPortRepeater() : mDefaults.getPortReverse()),
                         value.intent.getStringExtra(MainService.EXTRA_REPEATER_ID),
                         value.intent.getStringExtra(MainService.EXTRA_REQUEST_ID)
                 )));
@@ -877,6 +897,16 @@ public class MainService extends Service {
 
     private void handleClientReconnect(Intent reconnectIntent, long client, String logTag) {
 
+        // Tickets are single-use and the caller expects an authenticated connection: retrying with the
+        // same ticket violates the relay contract, retrying without one would silently downgrade.
+        // So connections with a ticket never auto-reconnect, the caller has to send a fresh ticket.
+        if (reconnectIntent.getStringExtra(EXTRA_REPEATER_TICKET) != null) {
+            if (reconnectIntent.getIntExtra(EXTRA_RECONNECT_TRIES, 0) > 0) {
+                Log.w(TAG, "handleClientReconnect: " + logTag + ": request id " + reconnectIntent.getStringExtra(EXTRA_REQUEST_ID) + " has an access ticket, not reconnecting");
+            }
+            return;
+        }
+
         final Intent intent = new IntentSanitizer.Builder()
                 .allowComponent(new ComponentName(this, getClass()))
                 .allowAction(ACTION_CONNECT_REPEATER)
@@ -887,6 +917,7 @@ public class MainService extends Service {
                 .allowExtra(EXTRA_HOST, String.class)
                 .allowExtra(EXTRA_PORT, Integer.class)
                 .allowExtra(EXTRA_REPEATER_ID, String.class)
+                // EXTRA_REPEATER_TICKET never gets here, see above
                 .build()
                 .sanitizeByFiltering(reconnectIntent);
 

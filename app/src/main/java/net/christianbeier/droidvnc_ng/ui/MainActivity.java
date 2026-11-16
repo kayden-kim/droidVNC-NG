@@ -95,6 +95,7 @@ import net.christianbeier.droidvnc_ng.input.InputKeyShortcutSetupActivity;
 import net.christianbeier.droidvnc_ng.input.InputKeysyms;
 import net.christianbeier.droidvnc_ng.input.InputRequestActivity;
 import net.christianbeier.droidvnc_ng.server.ClientList;
+import net.christianbeier.droidvnc_ng.server.WebSocketRepeater;
 
 import java.net.NetworkInterface;
 import java.net.SocketException;
@@ -335,15 +336,22 @@ public class MainActivity extends AppCompatActivity {
                     .setTitle(R.string.main_activity_repeater_vnc_button)
                     .setView(inputLayout)
                     .setPositiveButton(android.R.string.ok, (dialogInterface, i) -> {
-                        // parse host and port parts
-                        String[] parts = hostInputText.getText().toString().split("\\:");
-                        String host = parts[0];
+                        // parse host and port parts, or take a ws:// or wss:// URL as a whole
+                        String host;
                         int port = mDefaults.getPortRepeater();
-                        if (parts.length > 1) {
-                            try {
-                                port = Integer.parseInt(parts[1]);
-                            } catch(NumberFormatException unused) {
-                                // stays at default repeater port
+                        String hostInput = hostInputText.getText().toString().trim();
+                        if (WebSocketRepeater.isWebSocketUrl(hostInput)) {
+                            host = hostInput;
+                            port = WebSocketRepeater.getPort(hostInput);
+                        } else {
+                            String[] parts = hostInput.split("\\:");
+                            host = parts[0];
+                            if (parts.length > 1) {
+                                try {
+                                    port = Integer.parseInt(parts[1]);
+                                } catch(NumberFormatException unused) {
+                                    // stays at default repeater port
+                                }
                             }
                         }
                         // parse ID
@@ -354,7 +362,7 @@ public class MainActivity extends AppCompatActivity {
                             return;
                         }
                         // done
-                        Log.d(TAG, "repeater vnc " + host + ":" + port + ":" + repeaterId);
+                        Log.d(TAG, "repeater vnc " + repeaterAddress(host, port) + ":" + repeaterId);
                         mLastMainServiceRequestId = UUID.randomUUID().toString();
                         mLastRepeaterHost = host;
                         mLastRepeaterPort = port;
@@ -377,7 +385,7 @@ public class MainActivity extends AppCompatActivity {
                         mOutgoingConnectionWaitDialog = new AlertDialog.Builder(this)
                                 .setCancelable(false)
                                 .setTitle(R.string.main_activity_repeater_vnc_button)
-                                .setMessage(getString(R.string.main_activity_connecting_to, BidiFormatter.getInstance().unicodeWrap(host + ":" + port + " - " + repeaterId)))
+                                .setMessage(getString(R.string.main_activity_connecting_to, BidiFormatter.getInstance().unicodeWrap(repeaterAddress(host, port) + " - " + repeaterId)))
                                 .setView(progressBar)
                                 .show();
                     })
@@ -695,13 +703,13 @@ public class MainActivity extends AppCompatActivity {
                     if (intent.getBooleanExtra(MainService.EXTRA_REQUEST_SUCCESS, false)) {
                         Toast.makeText(MainActivity.this,
                                         getString(R.string.main_activity_repeater_vnc_success,
-                                                BidiFormatter.getInstance().unicodeWrap(mLastRepeaterHost + ":" + mLastRepeaterPort),
+                                                BidiFormatter.getInstance().unicodeWrap(repeaterAddress(mLastRepeaterHost, mLastRepeaterPort)),
                                                 mLastRepeaterId),
                                         Toast.LENGTH_LONG)
                                 .show();
                         SharedPreferences.Editor ed = prefs.edit();
                         ed.putString(PREFS_KEY_REPEATER_VNC_LAST_HOST,
-                                mLastRepeaterHost + ":" + mLastRepeaterPort);
+                                repeaterAddress(mLastRepeaterHost, mLastRepeaterPort));
                         ed.putString(PREFS_KEY_REPEATER_VNC_LAST_ID,
                                 mLastRepeaterId);
                         ed.apply();
@@ -709,7 +717,7 @@ public class MainActivity extends AppCompatActivity {
                     else
                         Toast.makeText(MainActivity.this,
                                         getString(R.string.main_activity_repeater_vnc_fail,
-                                                BidiFormatter.getInstance().unicodeWrap(mLastRepeaterHost + ":" + mLastRepeaterPort),
+                                                BidiFormatter.getInstance().unicodeWrap(repeaterAddress(mLastRepeaterHost, mLastRepeaterPort)),
                                                 mLastRepeaterId),
                                         Toast.LENGTH_LONG)
                                 .show();
@@ -1305,6 +1313,13 @@ public class MainActivity extends AppCompatActivity {
         // hide client list
         findViewById(R.id.connectionsHeading).setVisibility(View.GONE);
         findViewById(R.id.connectionsTable).setVisibility(View.GONE);
+    }
+
+    /**
+     * ws:// and wss:// URLs carry their port, plain repeaters are shown as host:port.
+     */
+    private static String repeaterAddress(String host, int port) {
+        return WebSocketRepeater.isWebSocketUrl(host) ? host : host + ":" + port;
     }
 
 }

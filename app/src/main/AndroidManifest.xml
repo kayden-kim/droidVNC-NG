@@ -24,7 +24,9 @@
     <uses-feature android:name="android.hardware.wifi"
         android:required="false" />
 
+    <!-- usesCleartextTraffic: OkHttp honours the network security policy, ws:// repeaters need it. See ADR 0006. -->
     <application
+        android:usesCleartextTraffic="true"
         android:requestLegacyExternalStorage="true"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
